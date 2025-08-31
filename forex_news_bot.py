@@ -218,20 +218,30 @@ async def on_message(message):
 
     content = message.content.strip()
     
-    # Custom handling for !news<date> format, e.g., !news010925
-    if content.startswith('!news') and len(content) == 11 and content[5:].isdigit():
+    # Custom handling for !news<date> format, e.g., !news010925 or !news01092025
+    if content.startswith('!news') and content[5:].isdigit():
         date_str = content[5:]
+        date_format = ''
+        
+        if len(date_str) == 6: # ddmmyy format
+            date_format = '%d%m%y'
+        elif len(date_str) == 8: # ddmmyyyy format
+            date_format = '%d%m%Y'
+        else:
+            await message.channel.send("Invalid date length. Please use `!newsddmmyy` or `!newsddmmyyyy`.")
+            return
+
         try:
             tz = pytz.timezone(ANNOUNCEMENT_TIMEZONE)
             today = datetime.now(tz).date()
-            target_date = datetime.strptime(date_str, '%d%m%y').date()
+            target_date = datetime.strptime(date_str, date_format).date()
             day_offset = (target_date - today).days
 
             await message.channel.send(f"Searching for news for {target_date.strftime('%A, %b %d, %Y')}...")
             await send_news_to_channel(message.channel, day_offset=day_offset)
             return # Stop processing so it doesn't conflict with other commands
         except ValueError:
-            await message.channel.send("Invalid date format. Please use `!newsddmmyy`. Example: `!news010925` for Sep 01, 2025.")
+            await message.channel.send("Invalid date format. Please use `!newsddmmyy` or `!newsddmmyyyy`.")
             return
         except Exception as e:
             await message.channel.send(f"An unexpected error occurred.")
@@ -240,6 +250,7 @@ async def on_message(message):
 
     # Process all other commands normally (!newstoday, !newstomorrow)
     await bot.process_commands(message)
+
 
 # --- BOT COMMANDS ---
 @bot.command(name='newstoday', help='Shows today\'s trading news.')
