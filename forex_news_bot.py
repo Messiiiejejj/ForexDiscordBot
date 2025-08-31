@@ -206,6 +206,40 @@ async def on_ready():
     print('------')
     print('Bot is ready to receive commands.')
 
+@bot.event
+async def on_message(message):
+    """
+    Handles all messages to catch custom commands like !newsddmmyy
+    and also processes regular commands.
+    """
+    # Ignore messages from the bot itself
+    if message.author == bot.user:
+        return
+
+    content = message.content.strip()
+    
+    # Custom handling for !news<date> format, e.g., !news010925
+    if content.startswith('!news') and len(content) == 11 and content[5:].isdigit():
+        date_str = content[5:]
+        try:
+            tz = pytz.timezone(ANNOUNCEMENT_TIMEZONE)
+            today = datetime.now(tz).date()
+            target_date = datetime.strptime(date_str, '%d%m%y').date()
+            day_offset = (target_date - today).days
+
+            await message.channel.send(f"Searching for news for {target_date.strftime('%A, %b %d, %Y')}...")
+            await send_news_to_channel(message.channel, day_offset=day_offset)
+            return # Stop processing so it doesn't conflict with other commands
+        except ValueError:
+            await message.channel.send("Invalid date format. Please use `!newsddmmyy`. Example: `!news010925` for Sep 01, 2025.")
+            return
+        except Exception as e:
+            await message.channel.send(f"An unexpected error occurred.")
+            print(f"Error in custom news command handler: {e}")
+            return
+
+    # Process all other commands normally (!newstoday, !newstomorrow)
+    await bot.process_commands(message)
 
 # --- BOT COMMANDS ---
 @bot.command(name='newstoday', help='Shows today\'s trading news.')
@@ -217,31 +251,6 @@ async def news_today(ctx):
 async def news_tomorrow(ctx):
     await ctx.send(f"Searching for news...")
     await send_news_to_channel(ctx.channel, day_offset=1)
-
-@bot.command(name='news', help='Shows trading news for a specific date. Format: !news ddmmyy')
-async def news_by_date(ctx, date_str: str = None):
-    """Fetches news for a specific date provided in ddmmyy format."""
-    if date_str is None:
-        await ctx.send("Please provide a date in `ddmmyy` format. Example: `!news 010925`")
-        return
-
-    try:
-        tz = pytz.timezone(ANNOUNCEMENT_TIMEZONE)
-        today = datetime.now(tz).date()
-        
-        target_date = datetime.strptime(date_str, '%d%m%y').date()
-        
-        day_offset = (target_date - today).days
-        
-        await ctx.send(f"Searching for news for {target_date.strftime('%A, %b %d, %Y')}...")
-        await send_news_to_channel(ctx.channel, day_offset=day_offset)
-
-    except ValueError:
-        await ctx.send("Invalid date format. Please use `ddmmyy`. Example: `!news 010925` for Sep 01, 2025.")
-    except Exception as e:
-        await ctx.send(f"An unexpected error occurred.")
-        print(f"Error in !news command: {e}")
-
 
 # --- ASYNCHRONOUS STARTUP ---
 async def run_bot_async():
