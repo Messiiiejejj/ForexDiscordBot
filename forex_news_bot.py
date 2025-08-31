@@ -32,6 +32,7 @@ ANNOUNCEMENT_TIMEZONE = "Europe/Zurich"
 ANNOUNCEMENT_TIME = "00:00"
 
 last_announcement_date = None # Tracks the date of the last announcement
+bot_has_started = False # Flag to prevent multiple bot instances on Gunicorn
 
 # --- BOT SETUP ---
 intents = discord.Intents.default()
@@ -277,9 +278,11 @@ if __name__ == "__main__":
         print("ERROR: DISCORD_TOKEN environment variable not found.")
 else:
     # This block is executed when Gunicorn imports the file to run the web server.
-    # We start the bot in a background thread.
-    print("Starting bot in background thread for Gunicorn...")
-    bot_thread = Thread(target=asyncio.run, args=(run_bot_async(),))
-    bot_thread.daemon = True # Allows Gunicorn to manage the parent process
-    bot_thread.start()
+    # We start the bot in a background thread, ensuring it only starts once.
+    if not bot_has_started:
+        print("Starting bot in background thread for Gunicorn...")
+        bot_thread = Thread(target=asyncio.run, args=(run_bot_async(),))
+        bot_thread.daemon = True # Allows Gunicorn to manage the parent process
+        bot_thread.start()
+        bot_has_started = True
 
