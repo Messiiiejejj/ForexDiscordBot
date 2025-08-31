@@ -217,8 +217,33 @@ async def news_tomorrow(ctx):
     await ctx.send(f"Searching for news...")
     await send_news_to_channel(ctx.channel, day_offset=1)
 
+@bot.command(name='news', help='Shows trading news for a specific date. Format: !news ddmmyy')
+async def news_by_date(ctx, date_str: str = None):
+    """Fetches news for a specific date provided in ddmmyy format."""
+    if date_str is None:
+        await ctx.send("Please provide a date in `ddmmyy` format. Example: `!news 010925`")
+        return
+
+    try:
+        tz = pytz.timezone(ANNOUNCEMENT_TIMEZONE)
+        today = datetime.now(tz).date()
+        
+        target_date = datetime.strptime(date_str, '%d%m%y').date()
+        
+        day_offset = (target_date - today).days
+        
+        await ctx.send(f"Searching for news for {target_date.strftime('%A, %b %d, %Y')}...")
+        await send_news_to_channel(ctx.channel, day_offset=day_offset)
+
+    except ValueError:
+        await ctx.send("Invalid date format. Please use `ddmmyy`. Example: `!news 010925` for Sep 01, 2025.")
+    except Exception as e:
+        await ctx.send(f"An unexpected error occurred.")
+        print(f"Error in !news command: {e}")
+
+
 # --- ASYNCHRONOUS STARTUP ---
-async def main():
+async def run_bot_async():
     """Handles bot startup and background tasks."""
     async with bot:
         daily_news_announcement.start()
@@ -231,21 +256,30 @@ app = Flask(__name__)
 def home():
     return "Bot is alive and running."
 
-def run_web_server():
-  app.run(host='0.0.0.0', port=10000)
-
 # --- RUN THE BOT & SERVER ---
 if __name__ == "__main__":
-    web_thread = Thread(target=run_web_server)
+    # This block is for local development/testing ONLY.
+    # Render will use Gunicorn and will not run this block.
+    
+    # Start the web server in a background thread
+    web_thread = Thread(target=app.run, kwargs={'host':'0.0.0.0','port':10000})
     web_thread.start()
     
+    # Start the Discord bot in the main thread
     if BOT_TOKEN:
         try:
-            asyncio.run(main())
+            asyncio.run(run_bot_async())
         except discord.errors.LoginFailure:
-            print("ERROR: Improper token has been passed. Check your DISCORD_TOKEN environment variable.")
+            print("ERROR: Improper token has been passed.")
         except Exception as e:
             print(f"An error occurred while running the bot: {e}")
     else:
-        print("ERROR: DISCORD_TOKEN environment variable not found. The bot cannot start.")
+        print("ERROR: DISCORD_TOKEN environment variable not found.")
+else:
+    # This block is executed when Gunicorn imports the file to run the web server.
+    # We start the bot in a background thread.
+    print("Starting bot in background thread for Gunicorn...")
+    bot_thread = Thread(target=asyncio.run, args=(run_bot_async(),))
+    bot_thread.daemon = True # Allows Gunicorn to manage the parent process
+    bot_thread.start()
 
