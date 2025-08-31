@@ -10,10 +10,13 @@ from datetime import datetime, timedelta
 import pytz
 import asyncio
 import json # For saving settings
+from flask import Flask
+from threading import Thread
+
 
 # --- CONFIGURATION ---
-# IMPORTANT: Replace "YOUR_DISCORD_BOT_TOKEN" with your actual bot token.
-BOT_TOKEN = "MTQxMDcyNjUzMDczMTk5OTM1NA.G2ROsu.d1PZu9AzVi2eDT68FRGzIvypyZnbOc4X7h2yso"
+# The bot will get its token from an environment variable called DISCORD_TOKEN on the server.
+BOT_TOKEN = os.environ.get("DISCORD_TOKEN")
 
 # The message to send when no news is found for a manual command.
 NO_NEWS_MESSAGE = "There are no news you prick"
@@ -25,9 +28,8 @@ NO_NEWS_ANNOUNCEMENT_MESSAGE = "No news today"
 EXCLUDED_CURRENCIES = {"AUD", "CAD", "CHF", "CNY", "NZD"}
 
 # --- ANNOUNCEMENT CONFIGURATION ---
-# PASTE THE CHANNEL ID for your announcement channel below.
-# To get the ID, enable Developer Mode in Discord, then right-click the channel and "Copy Channel ID".
-DEFAULT_ANNOUNCEMENT_CHANNEL_ID = 1411000066252079154
+# This is now a fallback. The bot will prioritize environment variables on the server.
+DEFAULT_ANNOUNCEMENT_CHANNEL_ID = int(os.environ.get("ANNOUNCEMENT_CHANNEL_ID", 1411000066252079154))
 DEFAULT_ANNOUNCEMENT_TIMEZONE = "Europe/Zurich"
 DEFAULT_ANNOUNCEMENT_TIME = "08:00"
 
@@ -41,7 +43,6 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # --- CONFIGURATION MANAGEMENT ---
-
 def load_config():
     """Loads configuration from a JSON file."""
     global bot_config
@@ -65,7 +66,6 @@ def save_config():
         json.dump(bot_config, f, indent=4)
 
 # --- WEB SCRAPING LOGIC ---
-
 def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
     Scrapes Forex Factory for news for a given day, based on a specific timezone.
@@ -147,7 +147,6 @@ def format_impact_emoji(impact_class):
     return "⚫️"
 
 # --- DISCORD BOT LOGIC ---
-
 async def send_news_to_channel(channel, day_offset, mention=None):
     """
     A generic function to fetch and send news to a specific channel.
@@ -228,7 +227,6 @@ async def daily_news_announcement():
             if channel:
                 print(f"Attempting to send daily news to channel: {channel.name}")
                 sent_ok = await send_news_to_channel(channel, day_offset=0, mention="@everyone")
-                # We always update the date now, even if no news was sent, to avoid spamming.
                 last_announcement_date = current_date
                 if sent_ok:
                     print(f"Daily news check complete. Last announcement date updated to {current_date}.")
@@ -264,7 +262,6 @@ async def on_ready():
         channel = bot.get_channel(channel_id)
         if channel:
             sent_ok = await send_news_to_channel(channel, day_offset=0, mention="@everyone")
-            # Set the last announcement date regardless of whether news was found
             if timezone_str:
                 tz = pytz.timezone(timezone_str)
                 now_in_tz = datetime.now(tz)
@@ -280,7 +277,6 @@ async def on_ready():
 
 
 # --- BOT COMMANDS ---
-
 @bot.command(name='newstoday', help='Shows today\'s trading news.')
 async def news_today(ctx):
     await ctx.send(f"Searching for news...")
@@ -316,12 +312,30 @@ async def main():
         daily_news_announcement.start()
         await bot.start(BOT_TOKEN)
 
-# --- RUN THE BOT ---
+# --- Keep Alive Web Server (For Render Hosting) ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive and running."
+
+def run_web_server():
+  app.run(host='0.0.0.0', port=10000)
+
+# --- RUN THE BOT & SERVER ---
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except discord.errors._LoginFailure:
-        print("ERROR: Improper token has been passed. Please make sure you have a valid Discord bot token.")
-    except Exception as e:
-        print(f"An error occurred while running the bot: {e}")
+    # Start the web server in a background thread
+    web_thread = Thread(target=run_web_server)
+    web_thread.start()
+    
+    # Start the Discord bot in the main thread
+    if BOT_TOKEN:
+        try:
+            asyncio.run(main())
+        except discord.errors.LoginFailure:
+            print("ERROR: Improper token has been passed. Check your DISCORD_TOKEN environment variable.")
+        except Exception as e:
+            print(f"An error occurred while running the bot: {e}")
+    else:
+        print("ERROR: DISCORD_TOKEN environment variable not found. The bot cannot start.")
 
