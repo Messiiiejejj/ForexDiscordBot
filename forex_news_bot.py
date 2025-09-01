@@ -50,11 +50,6 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
     Scrapes Forex Factory for news for a given day, using the persistent scraper session.
     """
     try:
-        # --- SESSION WARM-UP ---
-        # Visit the main calendar page first to initialize the session and get necessary cookies.
-        # This makes the subsequent request for a specific date appear more legitimate to the server.
-        scraper.get("https://www.forexfactory.com/calendar")
-
         tz = pytz.timezone(timezone_str)
         now_in_tz = datetime.now(tz)
         
@@ -63,8 +58,15 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        # Use the single, global scraper instance for the request.
-        response = scraper.get(url)
+        # --- EXPLICIT HEADERS ---
+        # Explicitly tell the server that we are navigating from the main calendar.
+        # This is a more robust way to bypass anti-bot measures that check for navigation flow.
+        headers = {
+            "Referer": "https://www.forexfactory.com/calendar"
+        }
+
+        # Use the single, global scraper instance for the request with the specific headers.
+        response = scraper.get(url, headers=headers)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, 'html.parser')
