@@ -11,6 +11,7 @@ import pytz
 import asyncio
 from flask import Flask
 from threading import Thread
+import time # Added for delay
 
 
 # --- CONFIGURATION ---
@@ -57,11 +58,13 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
     try:
         # --- DEFINITIVE FIX: THE "PRIMER" REQUEST ---
-        # First, visit the main calendar page. This allows cloudscraper to solve any JS
-        # challenges and acquire the necessary cookies to establish a valid session.
-        # This is the most critical step to avoid being blocked on future-date requests.
+        # First, visit the main calendar page to establish a valid session and get cookies.
         primer_url = "https://www.forexfactory.com/calendar"
-        scraper.get(primer_url)
+        primer_response = scraper.get(primer_url)
+        primer_response.raise_for_status() # Ensure the primer request was successful
+
+        # Add a small delay to better mimic human browsing behavior.
+        time.sleep(1)
 
         # Now that the session is "warmed up", we can request the specific date.
         tz = pytz.timezone(timezone_str)
@@ -129,7 +132,8 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         
         return display_date, events if events else None
     except Exception as e:
-        print(f"An error occurred during scraping: {e}")
+        # Log the specific error to the console for better debugging
+        print(f"An error occurred during scraping: {type(e).__name__} - {e}")
         return "Error", None
 
 def format_impact_emoji(impact_class):
