@@ -39,9 +39,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Create a single, persistent scraper session to be reused for all requests.
-# This maintains cookies and headers, appearing more like a real user.
+# Create a single, persistent scraper session with a realistic User-Agent to mimic a real browser.
 scraper = cloudscraper.create_scraper()
+scraper.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+})
 
 
 # --- WEB SCRAPING LOGIC ---
@@ -58,15 +60,8 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        # --- EXPLICIT HEADERS ---
-        # Explicitly tell the server that we are navigating from the main calendar.
-        # This is a more robust way to bypass anti-bot measures that check for navigation flow.
-        headers = {
-            "Referer": "https://www.forexfactory.com/calendar"
-        }
-
-        # Use the single, global scraper instance for the request with the specific headers.
-        response = scraper.get(url, headers=headers)
+        # Use the single, global scraper instance for the request. Its headers are pre-configured.
+        response = scraper.get(url)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, 'html.parser')
