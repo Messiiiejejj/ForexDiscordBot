@@ -53,17 +53,9 @@ scraper.headers.update({
 # --- WEB SCRAPING LOGIC ---
 def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
-    Scrapes Forex Factory for news for a given day, using a comprehensive, human-like approach.
+    Scrapes Forex Factory for news for a given day, using a persistent, human-like session.
     """
     try:
-        # --- DEFINITIVE FIX: THE "PRIMER" REQUEST ---
-        # First, visit the main calendar page. This allows cloudscraper to solve any JS
-        # challenges and acquire the necessary cookies to establish a valid session.
-        # This is the most critical step to avoid being blocked on future-date requests.
-        primer_url = "https://www.forexfactory.com/calendar"
-        scraper.get(primer_url)
-
-        # Now that the session is "warmed up", we can request the specific date.
         tz = pytz.timezone(timezone_str)
         now_in_tz = datetime.now(tz)
         
@@ -72,7 +64,8 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         target_url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        # Use the now-validated session to get the target page.
+        # Use the pre-configured scraper session to get the target page.
+        # cloudscraper will handle JS challenges and cookies automatically.
         response = scraper.get(target_url)
         response.raise_for_status()
 
@@ -223,51 +216,6 @@ async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('------')
     print('Bot is ready to receive commands.')
-
-@bot.event
-async def on_message(message):
-    """
-    Handles all messages to catch custom commands like !newsddmmyy
-    and also processes regular commands.
-    """
-    # Ignore messages from the bot itself
-    if message.author == bot.user:
-        return
-
-    content = message.content.strip()
-    
-    # Custom handling for !news<date> format, e.g., !news010925 or !news01092025
-    if content.startswith('!news') and content[5:].isdigit():
-        date_str = content[5:]
-        date_format = ''
-        
-        if len(date_str) == 6: # ddmmyy format
-            date_format = '%d%m%y'
-        elif len(date_str) == 8: # ddmmyyyy format
-            date_format = '%d%m%Y'
-        else:
-            await message.channel.send("Invalid date length. Please use `!newsddmmyy` or `!newsddmmyyyy`.")
-            return
-
-        try:
-            tz = pytz.timezone(ANNOUNCEMENT_TIMEZONE)
-            today = datetime.now(tz).date()
-            target_date = datetime.strptime(date_str, date_format).date()
-            day_offset = (target_date - today).days
-
-            await message.channel.send(f"Searching for news for {target_date.strftime('%A, %b %d, %Y')}...")
-            await send_news_to_channel(message.channel, day_offset=day_offset)
-            return # Stop processing so it doesn't conflict with other commands
-        except ValueError:
-            await message.channel.send("Invalid date format. Please use `!newsddmmyy` or `!newsddmmyyyy`.")
-            return
-        except Exception as e:
-            await message.channel.send(f"An unexpected error occurred.")
-            print(f"Error in custom news command handler: {e}")
-            return
-
-    # Process all other commands normally (!newstoday, !newstomorrow)
-    await bot.process_commands(message)
 
 
 # --- BOT COMMANDS ---
