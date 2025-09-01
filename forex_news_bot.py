@@ -49,9 +49,18 @@ scraper.headers.update({
 # --- WEB SCRAPING LOGIC ---
 def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
-    Scrapes Forex Factory for news for a given day, using the persistent scraper session.
+    Scrapes Forex Factory for news for a given day, using a comprehensive, human-like approach.
     """
     try:
+        # --- SESSION WARM-UP & HEADERS ---
+        # To appear as a legitimate user, we combine three techniques:
+        # 1. Warm up the session by visiting the main calendar page first.
+        # 2. Set a realistic User-Agent (done globally).
+        # 3. Set a Referer header to simulate navigating from the main page.
+        
+        # 1. Warm-up
+        scraper.get("https://www.forexfactory.com/calendar")
+
         tz = pytz.timezone(timezone_str)
         now_in_tz = datetime.now(tz)
         
@@ -60,12 +69,12 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        print(f"[DEBUG] Fetching URL: {url}")  # 🔍 Add this debug line
-
+        # 3. Referer Header
         headers = {
             "Referer": "https://www.forexfactory.com/calendar"
         }
 
+        # Use the single, global scraper instance for the request with the specific headers.
         response = scraper.get(url, headers=headers)
         response.raise_for_status()
 
@@ -73,7 +82,6 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         news_rows = soup.find_all('tr', class_='calendar__row')
 
         if not news_rows:
-            print(f"[INFO] No news rows found for {display_date}. Possibly not published yet.")
             return display_date, None
 
         events = []
@@ -125,7 +133,6 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
     except Exception as e:
         print(f"An error occurred during scraping: {e}")
         return "Error", None
-
 
 def format_impact_emoji(impact_class):
     """Converts impact CSS class to a colored emoji."""
