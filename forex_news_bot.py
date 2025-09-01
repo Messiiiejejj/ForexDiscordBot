@@ -53,9 +53,17 @@ scraper.headers.update({
 # --- WEB SCRAPING LOGIC ---
 def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
-    Scrapes Forex Factory for news for a given day, using a persistent, human-like session.
+    Scrapes Forex Factory for news for a given day, using a comprehensive, human-like approach.
     """
     try:
+        # --- DEFINITIVE FIX: THE "PRIMER" REQUEST ---
+        # First, visit the main calendar page. This allows cloudscraper to solve any JS
+        # challenges and acquire the necessary cookies to establish a valid session.
+        # This is the most critical step to avoid being blocked on future-date requests.
+        primer_url = "https://www.forexfactory.com/calendar"
+        scraper.get(primer_url)
+
+        # Now that the session is "warmed up", we can request the specific date.
         tz = pytz.timezone(timezone_str)
         now_in_tz = datetime.now(tz)
         
@@ -64,8 +72,7 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         target_url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        # Use the pre-configured scraper session to get the target page.
-        # cloudscraper will handle JS challenges and cookies automatically.
+        # Use the now-validated session to get the target page.
         response = scraper.get(target_url)
         response.raise_for_status()
 
