@@ -18,8 +18,8 @@ from threading import Thread
 BOT_TOKEN = os.environ.get("DISCORD_TOKEN")
 
 # Messages
-NO_NEWS_MESSAGE = "There are no news you prick"
-NO_NEWS_ANNOUNCEMENT_MESSAGE = "No news today"
+NO_NEWS_MESSAGE = "No high/medium impact news found for the selected currencies on this day."
+NO_NEWS_ANNOUNCEMENT_MESSAGE = "No high/medium impact news found for today."
 
 # A set of currencies to ignore for all news.
 EXCLUDED_CURRENCIES = {"AUD", "CAD", "CHF", "CNY", "NZD"}
@@ -34,16 +34,20 @@ ANNOUNCEMENT_TIME = "00:00"
 last_announcement_date = None # Tracks the date of the last announcement
 bot_has_started = False # Flag to prevent multiple bot instances on Gunicorn
 
-# --- BOT SETUP ---
+# --- BOT & SCRAPER SETUP ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Create a single, persistent scraper session to be reused for all requests.
+# This maintains cookies and headers, appearing more like a real user.
+scraper = cloudscraper.create_scraper()
 
 
 # --- WEB SCRAPING LOGIC ---
 def get_forex_news(day_offset=0, timezone_str="UTC"):
     """
-    Scrapes Forex Factory for news for a given day, based on a specific timezone.
+    Scrapes Forex Factory for news for a given day, using the persistent scraper session.
     """
     try:
         tz = pytz.timezone(timezone_str)
@@ -54,7 +58,7 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
         url_date_str = f"{target_date.strftime('%b').lower()}{target_date.day}.{target_date.year}"
         url = f"https://www.forexfactory.com/calendar?day={url_date_str}"
 
-        scraper = cloudscraper.create_scraper()
+        # Use the single, global scraper instance for the request.
         response = scraper.get(url)
         response.raise_for_status()
 
@@ -300,7 +304,8 @@ else:
     # This block is executed when Gunicorn imports the file to run the web server.
     # We start the bot in a background thread, ensuring it only starts once.
     if not bot_has_started:
-        print("Starting bot in background thread for Gunicorn...")
+        pid = os.getpid()
+        print(f"Starting bot in background thread for Gunicorn. Process ID: {pid}")
         bot_thread = Thread(target=asyncio.run, args=(run_bot_async(),))
         bot_thread.daemon = True # Allows Gunicorn to manage the parent process
         bot_thread.start()
