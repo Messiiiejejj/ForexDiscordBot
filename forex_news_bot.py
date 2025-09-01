@@ -50,6 +50,11 @@ def get_forex_news(day_offset=0, timezone_str="UTC"):
     Scrapes Forex Factory for news for a given day, using the persistent scraper session.
     """
     try:
+        # --- SESSION WARM-UP ---
+        # Visit the main calendar page first to initialize the session and get necessary cookies.
+        # This makes the subsequent request for a specific date appear more legitimate to the server.
+        scraper.get("https://www.forexfactory.com/calendar")
+
         tz = pytz.timezone(timezone_str)
         now_in_tz = datetime.now(tz)
         
